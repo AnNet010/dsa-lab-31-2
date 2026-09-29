@@ -1,0 +1,13 @@
+from typing import Protocol, Optional
+from .scooter import Scooter
+from .trip import Trip
+
+
+class ScooterRepository(Protocol):
+    def get(self, scooter_id: int) -> Optional[Scooter]: ...
+    def save(self, scooter: Scooter) -> None: ...
+
+
+class TripRepository(Protocol):
+    def get(self, trip_id: int) -> Optional[Trip]: ...
+    def save(self, trip: Trip) -> None: ...

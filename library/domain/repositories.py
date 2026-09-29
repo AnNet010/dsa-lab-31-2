@@ -1,0 +1,13 @@
+from typing import Protocol, Optional
+from library.domain.book import Book
+from library.domain.loan import Loan
+
+
+class BookRepository(Protocol):
+    def get(self, book_id: int) -> Optional[Book]: ...
+    def save(self, book: Book) -> None: ...
+
+
+class LoanRepository(Protocol):
+    def get(self, loan_id: int) -> Optional[Loan]: ...
+    def save(self, loan: Loan) -> None: ...

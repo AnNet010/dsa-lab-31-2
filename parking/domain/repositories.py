@@ -1,0 +1,13 @@
+from typing import Protocol, Optional
+from .parking_spot import ParkingSpot
+from .parking_session import ParkingSession
+
+
+class ParkingSpotRepository(Protocol):
+    def get(self, spot_id: int) -> Optional[ParkingSpot]: ...
+    def save(self, spot: ParkingSpot) -> None: ...
+
+
+class ParkingSessionRepository(Protocol):
+    def get(self, session_id: int) -> Optional[ParkingSession]: ...
+    def save(self, session: ParkingSession) -> None: ...
