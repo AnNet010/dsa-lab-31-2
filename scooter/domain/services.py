@@ -15,7 +15,7 @@ class StartTripService:
         if scooter is None:
             raise DomainInvariantViolation("Самокат не найден")
 
-        scooter.start_trip()  # проверяет инвариант 1
+        scooter.start_trip()
         trip = Trip(trip_id, scooter_id, user_id, period)
 
         self._scooter_repo.save(scooter)
