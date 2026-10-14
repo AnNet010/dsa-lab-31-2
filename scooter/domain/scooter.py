@@ -1,5 +1,7 @@
+from datetime import datetime
+from typing import Optional
 from .exceptions import DomainInvariantViolation
-from .value_objects import Battery
+from .value_objects import Battery, ReservationPeriod
 
 
 class Scooter:
@@ -9,6 +11,7 @@ class Scooter:
         self._id = scooter_id
         self._battery = battery
         self._status = status
+        self._reservation: Optional[ReservationPeriod] = None
 
     @property
     def id(self) -> int:
@@ -22,27 +25,48 @@ class Scooter:
     def status(self) -> str:
         return self._status
 
+    @property
+    def reservation(self) -> Optional[ReservationPeriod]:
+        return self._reservation
+
     def can_be_rented(self) -> bool:
         return (
             self._status == "free"
             and self._battery.level >= self.MIN_BATTERY
         )
 
-    def start_trip(self):
+    def reserve(self, period: ReservationPeriod) -> None:
         if not self.can_be_rented():
             raise DomainInvariantViolation(
-                "Самокат не может быть выдан: низкий заряд или занят"
+                "Самокат не может быть забронирован, низкий заряд или занят"
+            )
+        self._status = "reserved"
+        self._reservation = period
+
+    def cancel_reservation(self) -> None:
+        if self._status != "reserved":
+            raise DomainInvariantViolation("Самокат не забронирован")
+        self._status = "free"
+        self._reservation = None
+
+    def unlock(self) -> None:
+        if self._status != "reserved":
+            raise DomainInvariantViolation(
+                "Нельзя разблокировать, самокат не забронирован"
             )
         self._status = "in_use"
+        self._reservation = None
 
-    def finish_trip(self):
+    def finish_trip(self) -> None:
         if self._status != "in_use":
             raise DomainInvariantViolation("Самокат не в поездке")
         self._status = "free"
 
     @classmethod
-    def restore(cls, scooter_id: int, battery: Battery, status: str) -> "Scooter":
+    def restore(cls, scooter_id: int, battery: Battery,
+                status: str, reservation: Optional[ReservationPeriod] = None) -> "Scooter":
         scooter = cls(scooter_id, battery, status)
-        if status not in ("free", "in_use", "maintenance"):
+        scooter._reservation = reservation
+        if status not in ("free", "reserved", "in_use", "maintenance"):
             raise DomainInvariantViolation("Некорректный статус самоката")
         return scooter

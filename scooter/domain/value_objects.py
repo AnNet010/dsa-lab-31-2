@@ -28,7 +28,12 @@ class TripPeriod:
 
     def __post_init__(self):
         if self.end_time < self.start_time:
-            raise InvalidValueObject("Время окончания не может быть раньше времени начала")
+            raise InvalidValueObject(
+                "Время окончания не может быть раньше времени начала"
+            )
+
+    def duration_hours(self) -> float:
+        return (self.end_time - self.start_time).total_seconds() / 3600
 
 
 @dataclass(frozen=True)
@@ -38,3 +43,11 @@ class UserId:
     def __post_init__(self):
         if self.value <= 0:
             raise InvalidValueObject("UserId должен быть > 0")
+
+
+@dataclass(frozen=True)
+class ReservationPeriod:
+    until: datetime
+
+    def is_expired(self, now: datetime) -> bool:
+        return now >= self.until

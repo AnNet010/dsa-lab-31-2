@@ -1,0 +1,16 @@
+services:
+  scooter:
+    build: .
+    container_name: scooter_app
+    ports:
+      - "5000:5000"
+    environment:
+      - APP_PORT=5000
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

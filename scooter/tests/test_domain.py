@@ -1,38 +1,63 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from scooter.domain.value_objects import Battery, Money, TripPeriod
-from scooter.domain.scooter import Scooter
 from scooter.domain.trip import Trip
-from scooter.domain.services import StartTripService
-from scooter.domain.exceptions import DomainInvariantViolation, InvalidValueObject
-from scooter.infrastructure.in_memory import InMemoryScooterRepository, InMemoryTripRepository
+from scooter.domain.user import User
+from scooter.domain.scooter import Scooter
+from scooter.domain.exceptions import TransitionNotAllowed
+from scooter.domain.services import ScooterProcess
+from scooter.infrastructure.in_memory import (
+    InMemoryScooterRepository, InMemoryTripRepository,
+    InMemoryUserRepository, InMemoryPaymentGateway,
+)
+from scooter.infrastructure.clock import ShiftedClock
 
 
-def test_scooter_low_battery():
-    scooter = Scooter(1, Battery(10), status="free")
-    with pytest.raises(DomainInvariantViolation):
-        scooter.start_trip()
+FUTURE = datetime(2099, 1, 1, 10, 0)
 
 
-def test_trip_cannot_be_finished_twice():
-    period = TripPeriod(datetime(2026, 1, 1), datetime(2026, 1, 1, 0, 30))
-    trip = Trip(1, 1, 1, period)
-    trip.finish(datetime(2026, 1, 1, 0, 30), Money(100), Money(50))
-    with pytest.raises(DomainInvariantViolation):
-        trip.finish(datetime(2026, 1, 1, 0, 40), Money(150), Money(50))
-
-
-def test_start_trip_service():
+def _make_process():
     scooter_repo = InMemoryScooterRepository()
     trip_repo = InMemoryTripRepository()
+    user_repo = InMemoryUserRepository()
+    payment = InMemoryPaymentGateway()
+    clock = ShiftedClock()
+    clock.move_to(FUTURE)
 
-    scooter = Scooter(1, Battery(80))
-    scooter_repo.save(scooter)
+    scooter_repo.save(Scooter(1, Battery(80)))
+    user_repo.save(User(1, has_debt=False))
 
-    service = StartTripService(scooter_repo, trip_repo)
-    period = TripPeriod(datetime(2026, 1, 1), datetime(2026, 1, 1, 0, 30))
-    trip = service.start_trip(1, 1, 1, period)
+    process = ScooterProcess(scooter_repo, trip_repo, user_repo, payment, clock)
+    return process, scooter_repo, trip_repo, user_repo, payment, clock
 
-    assert scooter.status == "in_use"
-    assert trip_repo.get(1) is not None
+
+def test_successful_trip():
+    process, scooter_repo, trip_repo, user_repo, payment, clock = _make_process()
+    trip = process.reserve_scooter(1, 1, 1, FUTURE)
+    process.start_trip(1, 1)
+
+    assert trip.status == "Активна"
+
+    process.finish_trip(1, Money(200), is_in_zone=True)
+    assert trip.status == "Завершена"
+    assert scooter_repo.get(1).status == "free"
+
+
+def test_transition_not_allowed():
+    period = TripPeriod(FUTURE, FUTURE + timedelta(minutes=30))
+    trip = Trip(1, 1, 1, period)
+
+    with pytest.raises(TransitionNotAllowed):
+        trip.pause(FUTURE + timedelta(minutes=5))
+
+
+def test_reservation_expires():
+    process, scooter_repo, trip_repo, user_repo, payment, clock = _make_process()
+    trip = process.reserve_scooter(1, 1, 1, FUTURE)
+
+    clock.move_to(FUTURE + timedelta(minutes=11))
+    process.on_reservation_expired(clock.now())
+
+    assert trip.status == "Отменена"
+    assert scooter_repo.get(1).status == "free"
